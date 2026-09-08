@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ÉČKO Canteen - Health Scored Menu</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #0f3443, #34e89e);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        .header h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+        .header p { opacity: 0.85; font-size: 0.95rem; }
+        .container { max-width: 800px; margin: 1.5rem auto; padding: 0 1rem; }
+        .status {
+            text-align: center;
+            padding: 1rem;
+            font-size: 0.95rem;
+            color: #666;
+        }
+        .status.error { color: #e74c3c; }
+        .legend {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+            color: #555;
+        }
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot.great { background: #27ae60; }
+        .dot.good { background: #f39c12; }
+        .dot.ok { background: #e67e22; }
+        .dot.bad { background: #e74c3c; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.6rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.15s;
+        }
+        .card:hover { transform: translateX(4px); }
+        .rank {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ccc;
+            min-width: 2rem;
+            text-align: center;
+        }
+        .card:nth-child(1) .rank { color: #ffd700; }
+        .card:nth-child(2) .rank { color: #c0c0c0; }
+        .card:nth-child(3) .rank { color: #cd7f32; }
+        .info { flex: 1; }
+        .item-name { font-weight: 600; font-size: 1rem; }
+        .item-meta { font-size: 0.8rem; color: #888; margin-top: 0.2rem; }
+        .canteen-badge {
+            display: inline-block;
+            background: #eef2f7;
+            color: #0f3443;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.15rem 0.6rem;
+            border-radius: 10px;
+            margin-top: 0.15rem;
+        }
+        .notes { margin-top: 0.4rem; font-size: 0.78rem; line-height: 1.35; }
+        .notes .pos { color: #27ae60; }
+        .notes .neg { color: #e74c3c; }
+        .item-price { font-weight: 600; color: #333; white-space: nowrap; }
+        .score-badge {
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        .score-great { background: #27ae60; }
+        .score-good { background: #f39c12; }
+        .score-ok { background: #e67e22; }
+        .score-bad { background: #e74c3c; }
+        .refresh-btn {
+            display: block;
+            margin: 1.5rem auto 0;
+            padding: 0.7rem 2rem;
+            background: linear-gradient(135deg, #0f3443, #34e89e);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .refresh-btn:hover { opacity: 0.9; }
+        .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Canteen Main Dishes</h1>
+        <p>All Hlavní jídla ranked by health score - powered by AI</p>
+    </div>
+    <div class="container">
+        <div class="legend">
+            <span class="legend-item"><span class="dot great"></span> 8-10 Great</span>
+            <span class="legend-item"><span class="dot good"></span> 6-7 Good</span>
+            <span class="legend-item"><span class="dot ok"></span> 4-5 Okay</span>
+            <span class="legend-item"><span class="dot bad"></span> 1-3 Less healthy</span>
+        </div>
+        <div id="status" class="status">Loading menu...</div>
+        <div id="menu"></div>
+        <button class="refresh-btn" onclick="loadMenu()" id="refreshBtn">Refresh Menu</button>
+    </div>
+
+    <script>
+        function scoreClass(score) {
+            if (score >= 8) return 'great';
+            if (score >= 6) return 'good';
+            if (score >= 4) return 'ok';
+            return 'bad';
+        }
+
+        function renderMenu(items) {
+            const container = document.getElementById('menu');
+            container.innerHTML = items.map((item, i) => {
+                const positives = (item.positives || []).map(p => p).join(', ');
+                const negatives = (item.negatives || []).map(n => n).join(', ');
+                const notes = (positives || negatives) ? `
+                    <div class="notes">
+                        ${positives ? `<div class="pos">+ ${positives}</div>` : ''}
+                        ${negatives ? `<div class="neg">- ${negatives}</div>` : ''}
+                    </div>` : '';
+                return `
+                <div class="card">
+                    <div class="rank">#${i + 1}</div>
+                    <div class="info">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-meta">${item.category.replace('_', ' ')}${item.allergens ? ' · allergens: ' + item.allergens : ''}</div>
+                        <div class="canteen-badge">${item.canteen}</div>
+                        ${notes}
+                    </div>
+                    ${item.price ? `<div class="item-price">${item.price}</div>` : ''}
+                    <div class="score-badge score-${scoreClass(item.health_score)}">${item.health_score}</div>
+                </div>`;
+            }).join('');
+        }
+
+        async function loadMenu() {
+            const status = document.getElementById('status');
+            const btn = document.getElementById('refreshBtn');
+            status.className = 'status';
+            status.textContent = 'Fetching menu and scoring with AI...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/menu');
+                const data = await resp.json();
+                if (data.ok && data.items.length > 0) {
+                    status.textContent = `Found ${data.items.length} main dishes`;
+                    renderMenu(data.items);
+                } else {
+                    status.className = 'status error';
+                    status.textContent = data.error || 'No items found';
+                }
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = 'Failed to load menu: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        loadMenu();
+    </script>
+</body>
+</html>
