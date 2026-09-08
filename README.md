@@ -9,6 +9,12 @@ A simple web app that scrapes daily menus from Prague Catering canteens (Éčko,
 - Each item labelled with its source canteen
 - Fallback keyword-based scoring when no API key is configured
 
+## Supported canteens
+
+- **Éčko** – Prague Catering (prague-catering.cz)
+- **Futurama** – Prague Catering (prague-catering.cz)
+- **Rustonka** – Fastgood (fastgoodrustonka.cz)
+
 ## Requirements
 
 - Python 3.10+
@@ -55,13 +61,20 @@ Then open http://localhost:5000 in your browser.
 
 ## Adding a canteen
 
-Add an entry to the `CANTEENS` list in `app.py`:
+Add an entry to the `CANTEENS` list in `app.py`. For the Prague Catering format (a `<table class="dennimenu">` with a "Hlavní jídla" section), the default `scrape_menu` parser is used:
 
 ```python
 CANTEENS = [
     {"id": "ecko", "name": "Éčko", "url": "https://..."},
-    {"id": "futurama", "name": "Futurama", "url": "https://..."},
 ]
 ```
 
-The scraper expects the site's `<table class="dennimenu">` structure and only keeps items from the "Hlavní jídla" section.
+For other site formats, provide a dedicated scraper function and reference it via the `scraper` field:
+
+```python
+CANTEENS = [
+    {"id": "rustonka", "name": "Rustonka", "url": "https://...", "scraper": "rustonka"},
+]
+```
+
+The Rustonka scraper reads the active day tab pane and keeps items from the sections `hotová jídla`, `TIP KUCHAŘE`, and `salát jako hlavní jídlo`.

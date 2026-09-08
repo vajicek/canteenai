@@ -22,6 +22,12 @@ CANTEENS = [
         "name": "Futurama",
         "url": "https://www.prague-catering.cz/provozovny/jidelna-kantyna-praha/jidelna-denni-menu-praha-8/",
     },
+    {
+        "id": "rustonka",
+        "name": "Rustonka",
+        "url": "https://fastgoodrustonka.cz/nabidka.php?restaurace=rustonka",
+        "scraper": "rustonka",
+    },
 ]
 
 
@@ -203,6 +209,78 @@ def scrape_menu(url):
     return items
 
 
+def scrape_rustonka(url):
+    resp = requests.get(url, timeout=15)
+    resp.encoding = resp.apparent_encoding
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Sections that count as main dishes
+    main_sections = ["hotová jídla", "tip kuchaře", "salát jako hlavní jídlo"]
+
+    # Select today's (active) day tab pane that holds the canteen main-menu sections
+    active_pane = None
+    for pane in soup.find_all("div", class_="tab-pane"):
+        cls = pane.get("class", [])
+        if "in" not in cls or "active" not in cls:
+            continue
+        section_names = [
+            normalize_name(h.find("div", class_="name").get_text(strip=True)).lower()
+            for h in pane.find_all("div", class_="headline")
+            if h.find("div", class_="name")
+        ]
+        if any(name in section_names for name in main_sections):
+            active_pane = pane
+            break
+    if not active_pane:
+        return []
+
+    items = []
+    current_section = ""
+    seen_names = set()
+
+    for elem in active_pane.find_all("div"):
+        classes = elem.get("class") or []
+
+        # Track current section from headline blocks
+        if "headline" in classes and elem.parent and "tab-pane" in (elem.parent.get("class") or []):
+            name_el = elem.find("div", class_="name")
+            if name_el:
+                current_section = normalize_name(name_el.get_text(strip=True)).lower()
+
+        # Collect items inside a menu-items block
+        if "item" in classes and elem.parent and "menu-items" in (elem.parent.get("class") or []):
+            if current_section not in main_sections:
+                continue
+
+            name_el = elem.find("div", class_="name")
+            price_el = elem.find("div", class_="price")
+            if not name_el:
+                continue
+
+            clean_name = normalize_name(name_el.get_text(" ", strip=True))
+            if not clean_name or len(clean_name) < 3 or clean_name in seen_names:
+                continue
+            if "Kč" in clean_name:
+                continue
+
+            seen_names.add(clean_name)
+            price = price_el.get_text(strip=True) if price_el else ""
+            match = re.match(r"^(\d+),-$", price)
+            if match:
+                price = f"{match.group(1)} Kč"
+
+            allergens = ",".join(li.get_text(strip=True) for li in elem.select(".allergen li"))
+            allergens = allergens.strip(",")
+
+            items.append({
+                "name": clean_name,
+                "category": "main",
+                "price": price,
+                "allergens": allergens,
+            })
+    return items
+
+
 def score_items_with_ai(items):
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -239,7 +317,7 @@ No markdown, no explanation, just the JSON object."""
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=1000,
+            max_tokens=2000,
         )
         text = resp.choices[0].message.content.strip()
 
@@ -323,7 +401,10 @@ def api_menu():
     seen = set()
     for canteen in CANTEENS:
         try:
-            items = scrape_menu(canteen["url"])
+            if canteen.get("scraper") == "rustonka":
+                items = scrape_rustonka(canteen["url"])
+            else:
+                items = scrape_menu(canteen["url"])
             for item in items:
                 key = item["name"].lower()
                 if key in seen:
