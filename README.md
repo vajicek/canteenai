@@ -22,6 +22,35 @@ A simple web app that scrapes daily menus from Prague Catering canteens (Éčko,
 
 ## Installation
 
+### Quick install (as a systemd service)
+
+The easiest way to install and run canteenai as a system service:
+
+```bash
+git clone https://github.com/vajicek/canteenai.git
+cd canteenai
+sudo ./install.sh
+```
+
+The installer will:
+- Create a system user (`canteenai`)
+- Install the app to `/opt/canteenai`
+- Set up the Python virtual environment
+- Create `.env` configuration file
+- Install and start the systemd service
+
+After installation, configure your API key:
+
+```bash
+sudo nano /opt/canteenai/.env
+```
+
+Add your OpenAI settings and save. The service will automatically reload with the new configuration.
+
+### Manual installation (development)
+
+For development or if you prefer manual setup:
+
 ```bash
 cd canteen-health-menu
 python3 -m venv venv
@@ -93,6 +122,73 @@ python app.py
 ```
 
 Then open http://localhost:5000 in your browser.
+
+## Running as a systemd service
+
+To run the app as a system service with automatic restarts:
+
+### 1. Create a system user (one-time setup)
+
+```bash
+sudo useradd -r -s /bin/bash canteenai
+```
+
+### 2. Install the app to `/opt/canteenai`
+
+```bash
+sudo mkdir -p /opt/canteenai
+sudo cp -r . /opt/canteenai/
+sudo chown -R canteenai:canteenai /opt/canteenai
+```
+
+### 3. Set up environment
+
+Create `/opt/canteenai/.env` with your configuration:
+
+```bash
+sudo nano /opt/canteenai/.env
+```
+
+Add your OpenAI settings:
+
+```
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_BASE_URL=  # Optional
+OPENAI_MODEL=     # Optional
+```
+
+### 4. Install the systemd service
+
+```bash
+sudo cp canteenai.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+### 5. Start the service
+
+```bash
+sudo systemctl start canteenai
+sudo systemctl enable canteenai  # Enable on boot
+```
+
+### 6. Check status and logs
+
+```bash
+sudo systemctl status canteenai
+sudo journalctl -u canteenai -f  # Follow logs
+```
+
+### Service management commands
+
+```bash
+sudo systemctl start canteenai     # Start
+sudo systemctl stop canteenai      # Stop
+sudo systemctl restart canteenai   # Restart
+sudo systemctl status canteenai    # Check status
+sudo journalctl -u canteenai -n 50 # View last 50 logs
+```
+
+The app will be available at `http://localhost:5000` and will automatically restart on failure.
 
 ## How it works
 
