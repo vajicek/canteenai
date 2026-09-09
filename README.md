@@ -45,6 +45,47 @@ OPENAI_API_KEY=sk-your-key-here
 
 If no key is set, the app falls back to heuristic scoring (no AI call).
 
+### OpenAI API Options
+
+You can customize the OpenAI client with the following optional environment variables:
+
+- **`OPENAI_MODEL`** – Model to use for scoring (default: `gpt-4o-mini`)
+  ```
+  OPENAI_MODEL=gpt-4o
+  ```
+
+- **`OPENAI_BASE_URL`** – Custom base URL for OpenAI-compatible APIs (e.g., Ollama, LM Studio, Azure OpenAI)
+  ```
+  OPENAI_BASE_URL=http://localhost:8000/v1
+  ```
+
+### Example configurations
+
+**Using default OpenAI API:**
+```
+OPENAI_API_KEY=sk-your-key-here
+```
+
+**Using a different model:**
+```
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL=gpt-4-turbo
+```
+
+**Using a local Ollama instance:**
+```
+OPENAI_API_KEY=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_MODEL=llama2
+```
+
+**Using Azure OpenAI:**
+```
+OPENAI_API_KEY=your-azure-key
+OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/deployments/your-deployment/
+OPENAI_MODEL=gpt-4
+```
+
 ## Running
 
 ```bash
