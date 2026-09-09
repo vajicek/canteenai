@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, render_template, jsonify
 from openai import OpenAI
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
@@ -286,8 +287,6 @@ def score_items_with_ai(items):
     if not api_key:
         return score_items_heuristic(items)
 
-    client = OpenAI(api_key=api_key)
-
     menu_text = "\n".join(
         f"- {item['name']} [{item['category']}] (allergens: {item['allergens'] or 'unknown'})"
         for item in items
@@ -313,13 +312,7 @@ No markdown, no explanation, just the JSON object."""
     print("=" * 60)
 
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=2000,
-        )
-        text = resp.choices[0].message.content.strip()
+        text = _score_with_openai(prompt, api_key)
 
         print("=" * 60)
         print("AI MODEL OUTPUT:")
@@ -350,6 +343,24 @@ No markdown, no explanation, just the JSON object."""
     except Exception as e:
         print(f"AI scoring failed, using heuristic: {e}")
         return score_items_heuristic(items)
+
+
+def _score_with_openai(prompt, api_key):
+    """Score items using OpenAI API."""
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    client_kwargs = {"api_key": api_key}
+    if base_url:
+        client_kwargs["base_url"] = base_url
+    client = OpenAI(**client_kwargs)
+
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=10000,
+    )
+    return resp.choices[0].message.content.strip()
 
 
 def score_items_heuristic(items):
