@@ -324,11 +324,9 @@ No markdown, no explanation, just the JSON object."""
         text = re.sub(r"```json\s*", "", text)
         text = re.sub(r"```\s*$", "", text)
         scores = json.loads(text)
-        print(scores)
 
         # Handle both simple {name: int} and enriched {name: {score, positives, negatives}} forms
         for item in items:
-            print(item)
             entry = scores.get(item["name"], {})
             if isinstance(entry, dict):
                 item["health_score"] = entry.get("score", 5)
