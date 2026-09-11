@@ -350,6 +350,7 @@ def _score_with_openai(prompt, api_key):
     client_kwargs = {"api_key": api_key}
     if base_url:
         client_kwargs["base_url"] = base_url
+    client_kwargs["http_client"] = httpx.Client(verify=False)
     client = OpenAI(**client_kwargs)
 
     resp = client.chat.completions.create(
