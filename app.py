@@ -408,7 +408,7 @@ No markdown, no explanation, just the JSON object."""
 
         # Handle both simple {name: int} and enriched {name: {score, positives, negatives}} forms
         for item in items:
-            entry = scores.get(item["name"], {})
+            entry = _match_score_entry(item["name"], scores)
             if isinstance(entry, dict):
                 item["health_score"] = entry.get("score", 5)
                 item["positives"] = entry.get("positives", [])
@@ -422,6 +422,36 @@ No markdown, no explanation, just the JSON object."""
     except Exception as e:
         print(f"AI scoring failed, using heuristic: {e}")
         return score_items_heuristic(items)
+
+
+def _strip_weight_prefix(name):
+    """Remove a leading portion-size like '150g ' so AI keys match scraped names."""
+    return re.sub(r"^\d+\s*g\s*", "", name).strip()
+
+
+def _match_score_entry(item_name, scores):
+    """Find the AI score entry for an item despite weight prefixes or whitespace drift."""
+    if item_name in scores:
+        return scores[item_name]
+
+    stripped = _strip_weight_prefix(item_name)
+    if stripped in scores:
+        return scores[stripped]
+
+    stripped_lower = stripped.lower()
+    for key, value in scores.items():
+        key_lower = _strip_weight_prefix(key).lower()
+
+        if key_lower == stripped_lower:
+            return value
+
+        # Tolerate punctuation/whitespace drift (e.g. ", " vs ",")
+        norm_key = "".join(ch for ch in key_lower if ch.isalnum() or ch.isspace())
+        norm_name = "".join(ch for ch in stripped_lower if ch.isalnum() or ch.isspace())
+        if "".join(norm_key.split()) == "".join(norm_name.split()):
+            return value
+
+    return {}
 
 
 def _score_with_openai(prompt, api_key):
