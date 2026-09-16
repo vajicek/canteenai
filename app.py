@@ -7,6 +7,7 @@ from flask import Flask, render_template, jsonify
 from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
+from datetime import datetime
 
 load_dotenv()
 
@@ -28,6 +29,12 @@ CANTEENS = [
         "name": "Rustonka",
         "url": "https://fastgoodrustonka.cz/nabidka.php?restaurace=rustonka",
         "scraper": "rustonka",
+    },
+    {
+        "id": "pivokarlin",
+        "name": "Pivokarlin",
+        "url": "https://www.pivokarlin.cz/",
+        "scraper": "pivokarlin",
     },
 ]
 
@@ -282,6 +289,80 @@ def scrape_rustonka(url):
     return items
 
 
+def scrape_pivokarlin(url):
+    resp = requests.get(url, timeout=15, verify=False)
+    resp.encoding = resp.apparent_encoding
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    menu_elem = soup.find(id="menu")
+    if not menu_elem:
+        return []
+
+    # Map Czech day names to weekday numbers
+    day_names = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle']
+    today_weekday = datetime.now().weekday()  # 0=Monday, 6=Sunday
+    today_name = day_names[today_weekday]
+
+    # Find the vc_column-inner div for today
+    # The div should have format: "DD.MĚSÍC ROKDay name" followed by menu items
+    today_div = None
+    all_divs = menu_elem.find_all('div', class_='vc_column-inner')
+    
+    for div in all_divs:
+        # Get first nectar_food_menu_item to check if this div has items
+        first_item = div.find('div', class_='nectar_food_menu_item')
+        if not first_item:
+            continue
+        
+        # Get the text at the start of the div
+        text = div.get_text(strip=True)
+        
+        # Check if this div starts with a date pattern and contains today's day name
+        # Pattern should be like "16.ZÁŘÍ2026Středa..."
+        if today_name in text and any(month in text for month in ['ZÁŘÍ', 'ŘÍJEN', 'LISTOPAD', 'BŘEZ', 'DUBEN', 'KVĚTEN', 'June', 'ČERV']):
+            # Make sure it's not the big header div (which would have way more items/text before the items)
+            items_in_div = div.find_all('div', class_='nectar_food_menu_item')
+            if len(items_in_div) <= 15:  # Lunch menu should have around 9 items
+                today_div = div
+                break
+
+    if not today_div:
+        return []
+
+    # Extract all nectar_food_menu_item divs from today's div
+    menu_items = today_div.find_all('div', class_='nectar_food_menu_item')
+
+    items = []
+    for menu_item in menu_items:
+        # Get name
+        name_elem = menu_item.find('div', class_='item_name')
+        if not name_elem:
+            continue
+        
+        name_text = name_elem.get_text(strip=True)
+        if not name_text or len(name_text) < 3:
+            continue
+
+        # Extract allergens
+        allergen_match = re.search(r'\s+([\d,]+)\s*$', name_text)
+        allergens = allergen_match.group(1) if allergen_match else ""
+        clean_name = re.sub(r'\s+[\d,]+\s*$', '', name_text)
+
+        # Get price
+        price_elem = menu_item.find('div', class_='item_price')
+        price = price_elem.get_text(strip=True) if price_elem else ""
+
+        if clean_name and len(clean_name) > 3:
+            items.append({
+                "name": clean_name,
+                "category": "main",
+                "price": price,
+                "allergens": allergens,
+            })
+
+    return items
+
+
 def score_items_with_ai(items):
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -413,6 +494,8 @@ def api_menu():
         try:
             if canteen.get("scraper") == "rustonka":
                 items = scrape_rustonka(canteen["url"])
+            elif canteen.get("scraper") == "pivokarlin":
+                items = scrape_pivokarlin(canteen["url"])
             else:
                 items = scrape_menu(canteen["url"])
             for item in items:
